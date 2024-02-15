@@ -1,10 +1,8 @@
 import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
 import path from "path";
-
-interface ComputationData {
-  data: string;
-}
+import BN from "bn.js";
+import { ComputationData, ResultAck } from "./types";
 
 // Define the path to your .proto file
 const PROTO_PATH = path.resolve(__dirname, "computation.proto");
@@ -19,7 +17,7 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 });
 const protoDescriptor = grpc.loadPackageDefinition(packageDefinition);
 
-// Assume your package is named "computation"
+// Correctly access the service
 const computation = protoDescriptor.computation as any;
 
 // Create a client for the ComputationService
@@ -28,54 +26,54 @@ const client = new computation.ComputationService(
   grpc.credentials.createInsecure()
 );
 
-// Example call for sendComputationData
-const sendComputationData = () => {
-  const requestData = { data: "Your computation data here" };
-  client.sendComputationData(
-    requestData,
-    (error: grpc.ServiceError | null, response: any) => {
-      if (error) {
-        console.error(`Error calling sendComputationData: ${error.message}`);
-      } else {
-        console.log(
-          `Received from sendComputationData: ${JSON.stringify(response)}`
-        );
-      }
-    }
-  );
-};
-
-// Example call for getComputationResult
-const getComputationResult = () => {
-  const requestResult = { result: "Your computation result data here" };
-  client.getComputationResult(
-    requestResult,
-    (error: grpc.ServiceError | null, response: any) => {
-      if (error) {
-        console.error(`Error calling getComputationResult: ${error.message}`);
-      } else {
-        console.log(
-          `Received from getComputationResult: ${JSON.stringify(response)}`
-        );
-      }
-    }
-  );
-};
-
 const streamComputationData = () => {
   const streamRequest = { clientId: "client1" };
-  const stream = client.streamComputationData(streamRequest);
+  const stream = client.sendComputationData(streamRequest);
   stream.on("data", (data: ComputationData) => {
-    console.log(`Received stream data: ${data.data}`);
+    // Process each array of bytes for scalar, x, and y
+    const scalars = data.scalar.map((bytes) => new BN(bytes));
+    const xs = data.x.map((bytes) => new BN(bytes));
+    const ys = data.y.map((bytes) => new BN(bytes));
+
+    // Example of how to log the received data
+    scalars.forEach((scalar, index) => {
+      const x = xs[index]; // Corresponding x value
+      const y = ys[index]; // Corresponding y value
+      console.log(
+        `Received data set: Scalar=${scalar.toString(10)}, X=${x.toString(
+          10
+        )}, Y=${y.toString(10)}`
+      );
+    });
   });
   stream.on("end", () => {
     console.log("Stream ended.");
   });
 };
 
-// Call the methods
-sendComputationData();
-getComputationResult();
+// Function to send computation result back to the server
+const sendComputationResult = () => {
+  // Example: Sending a dummy result back to the server
+  const resultData = {
+    resultX: Buffer.from(new BN(1).toArray("be", 32)), // BN to Buffer
+    resultY: Buffer.from(new BN(2).toArray("be", 32)),
+  };
+  client.receiveComputationResult(
+    resultData,
+    (error: grpc.ServiceError | null, response: ResultAck) => {
+      if (error) {
+        console.error(`Error sending computation result: ${error.message}`);
+      } else {
+        console.log(
+          `Computation result sent successfully: ${JSON.stringify(response)}`
+        );
+      }
+    }
+  );
+};
 
-// 스트리밍 데이터 받기 시작
+// Start receiving stream data
 streamComputationData();
+
+// Send a computation result after receiving data
+sendComputationResult();

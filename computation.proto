@@ -2,41 +2,34 @@ syntax = "proto3";
 
 package computation;
 
-// The computation service definition.
+// Service definition for performing Multi-Scalar Multiplication (MSM) operations
 service ComputationService {
-  // Sends computation data to a node
-  rpc SendComputationData (ComputationRequest) returns (ComputationAck);
-
-  // Receives computation results from a node
-  rpc GetComputationResult (ComputationResult) returns (ResultAck);
-
-  // Streams computation data to a node
-  rpc StreamComputationData (StreamRequest) returns (stream ComputationData);
+  // Sends computation data to client nodes for MSM computation
+  rpc SendComputationData (ComputationRequest) returns (stream ComputationData);
+  
+  // Receives the computation results from client nodes
+  rpc ReceiveComputationResult (ComputationResult) returns (ResultAck);
 }
 
-// The request message containing the computation data.
+// Used by a client node to request computation data (Client -> Server)
 message ComputationRequest {
-  string data = 1;
+  string clientId = 1; // Unique identifier for the client node
 }
 
-// The acknowledgment message for computation data reception.
-message ComputationAck {
-  bool success = 1;
-}
-
-// The message containing computation results.
-message ComputationResult {
-  string result = 1;
-}
-
-message ResultAck {
-  bool success = 1;
-}
-
-message StreamRequest {
-  string clientId = 1;
-}
-
+// Contains the computation data sent from the server to client nodes (Server -> Client)
 message ComputationData {
-  string data = 1;
+  repeated bytes scalar = 1; // The scalar as a byte array, for numbers up to 2^256-1
+  repeated bytes x = 2; // The x coordinate as a byte array, for numbers up to 2^256-1
+  repeated bytes y = 3; // The y coordinate as a byte array, for numbers up to 2^256-1
+}
+
+// Contains the result of the computation sent from client nodes back to the server (Client -> Server)
+message ComputationResult {
+  bytes resultX = 1; // The computed result's x coordinate as a byte array
+  bytes resultY = 2; // The computed result's y coordinate as a byte array
+}
+
+// Acknowledges the successful reception of computation results (Server -> Client)
+message ResultAck {
+  bool success = 1; // Indicates whether the server successfully received and processed the computation result
 }
